@@ -17,10 +17,25 @@ namespace MovieRecommender
     {
         [FunctionName("MovieRecommender")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)] HttpRequest req,
             ILogger log)
         {
             log.LogInformation("C# HTTP trigger function processed a request.");
+
+            string movieData = req.Query["movieData"];
+
+            if (String.IsNullOrWhiteSpace(movieData))
+            {
+                return new BadRequestObjectResult("Please pass a name on the query string");
+            }
+
+            // Create test input & make single prediction
+            String[] values = movieData.Split(":");
+            var movieRatingTestInput = new MovieRating
+            {
+                userId = Int32.Parse(values[0]),
+                movieId = Int32.Parse(values[1])
+            };
 
             // Create MLContext to be shared across the model creation workflow objects 
             MLContext mlContext = new MLContext();
@@ -35,20 +50,12 @@ namespace MovieRecommender
             EvaluateModel(mlContext, testDataView, model);
 
             // Use model to try a single prediction (one row of data)
-            UseModelForSinglePrediction(mlContext, model);
+            string result = UseModelForSinglePrediction(mlContext, model, movieRatingTestInput);
 
             // Save model
             SaveModel(mlContext, trainingDataView.Schema, model);
 
-            string name = req.Query["name"];
-
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
-
-            return name != null
-                ? (ActionResult)new OkObjectResult($"Hello, {name}")
-                : new BadRequestObjectResult("Please pass a name on the query string or in the request body");
+            return (ActionResult)new OkObjectResult(result);
         }
 
         // Load data
@@ -103,24 +110,25 @@ namespace MovieRecommender
         }
 
         // Use model for single prediction
-        public static void UseModelForSinglePrediction(MLContext mlContext, ITransformer model)
+        public static String UseModelForSinglePrediction(MLContext mlContext, ITransformer model, MovieRating movieRatingTestInput)
         {
+            String result = String.Empty;
             Console.WriteLine("=============== Making a prediction ===============");
             var predictionEngine = mlContext.Model.CreatePredictionEngine<MovieRating, MovieRatingPrediction>(model);
 
-            // Create test input & make single prediction
-            var testInput = new MovieRating { userId = 6, movieId = 10 };
-
-            var movieRatingPrediction = predictionEngine.Predict(testInput);
+            var movieRatingPrediction = predictionEngine.Predict(movieRatingTestInput);
 
             if (Math.Round(movieRatingPrediction.Score, 1) > 3.5)
             {
-                Console.WriteLine("Movie " + testInput.movieId + " is recommended for user " + testInput.userId);
+                result = "Movie " + movieRatingTestInput.movieId + " is recommended for user " + movieRatingTestInput.userId;
             }
             else
             {
-                Console.WriteLine("Movie " + testInput.movieId + " is not recommended for user " + testInput.userId);
+                result = "Movie " + movieRatingTestInput.movieId + " is not recommended for user " + movieRatingTestInput.userId;
             }
+
+            Console.WriteLine(result);
+            return result;
         }
 
         public static void SaveModel(MLContext mlContext, DataViewSchema trainingDataViewSchema, ITransformer model)
