@@ -120,11 +120,11 @@ namespace MovieRecommender
 
             if (Math.Round(movieRatingPrediction.Score, 1) > 3.5)
             {
-                result = "Movie " + movieRatingTestInput.movieId + " is recommended for user " + movieRatingTestInput.userId;
+                result = String.Concat(movieRatingTestInput.userId, ":", movieRatingTestInput.movieId, ":", true);
             }
             else
             {
-                result = "Movie " + movieRatingTestInput.movieId + " is not recommended for user " + movieRatingTestInput.userId;
+                result = String.Concat(movieRatingTestInput.userId, ":", movieRatingTestInput.movieId, ":", false);
             }
 
             Console.WriteLine(result);
